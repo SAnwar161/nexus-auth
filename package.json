@@ -1,1 +1,11 @@
+{
+  "name": "nexus-auth-service",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "jose": "^5.2.0",
+    "nanoid": "^5.0.0"
+  }
+}
+npm install 
 
