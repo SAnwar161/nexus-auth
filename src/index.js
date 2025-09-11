@@ -1,21 +1,37 @@
-// Add this route to handle analytics tracking
-router.post('/analytics/track', async (ctx) => {
-  const authHeader = ctx.req.header('Authorization');
+import { Router } from 'itty-router';
+import { verifyJWT } from './lib/jwt'; // Adjust path if needed
+
+const router = Router();
+
+router.get('/auth/me', async (ctx) => {
+  const authHeader = ctx.request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const token = authHeader.split(' ')[1];
-  const user = await verifyJWT(token); // Use your existing JWT verification logic
-  if (!user) return new Response('Invalid token', { status: 403 });
+  const user = await verifyJWT(token);
+  if (!user || !user.id) {
+    return new Response('Invalid token', { status: 403 });
+  }
 
-  const { event, metadata } = await ctx.req.json();
-  const timestamp = new Date().toISOString();
+  const result = await ctx.env.DB.prepare(`
+    SELECT email, plan FROM users WHERE id = ?
+  `).bind(user.id).first();
 
-  await ctx.env.DB.prepare(`
-    INSERT INTO analytics (user_id, event, metadata, timestamp)
-    VALUES (?, ?, ?, ?)
-  `).bind(user.id, event, JSON.stringify(metadata || {}), timestamp).run();
+  if (!result) {
+    return new Response('User not found', { status: 404 });
+  }
 
-  return new Response('Event tracked', { status: 200 });
+  return new Response(JSON.stringify(result), {
+    headers: { 'Content-Type': 'application/json' }
+  });
 });
+
+// Add other routes below...
+
+export default {
+  async fetch(request, env, ctx) {
+    return router.handle(request, env, ctx);
+  }
+};
