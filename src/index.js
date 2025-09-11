@@ -29,6 +29,21 @@ router.get('/auth/me', async (ctx) => {
   });
 });
 
+// POST /auth/signup — creates user with country
+router.post('/auth/signup', async (ctx) => {
+  const { email, password, country } = await ctx.request.json();
+  const hash = await hashPassword(password); // use your existing hash logic
+
+  await ctx.env.DB.prepare(`
+    INSERT INTO users (email, password_hash, country, created_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+  `).bind(email, hash, country).run();
+
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+});
+
 // POST /auth/upgrade — changes user's plan
 router.post('/auth/upgrade', async (ctx) => {
   const authHeader = ctx.request.headers.get('Authorization');
@@ -84,7 +99,7 @@ router.post('/analytics/track', async (ctx) => {
   });
 });
 
-// GET /admin/overview — returns user and event data for admin
+// GET /admin/overview — returns user and event data for admin with filters
 router.get('/admin/overview', async (ctx) => {
   const authHeader = ctx.request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -97,13 +112,27 @@ router.get('/admin/overview', async (ctx) => {
     return new Response('Forbidden', { status: 403 });
   }
 
-  const users = await ctx.env.DB.prepare(`
-    SELECT email, plan, created_at FROM users ORDER BY created_at DESC
-  `).all();
+  const { start, end, q, country } = Object.fromEntries(new URL(ctx.request.url).searchParams);
+  let userWhere = [];
+  let eventWhere = [];
 
-  const events = await ctx.env.DB.prepare(`
-    SELECT event, metadata, timestamp FROM analytics ORDER BY timestamp DESC LIMIT 100
-  `).all();
+  if (start && end) {
+    userWhere.push(`created_at BETWEEN '${start}' AND '${end}'`);
+    eventWhere.push(`timestamp BETWEEN '${start}' AND '${end}'`);
+  }
+  if (q) {
+    userWhere.push(`email LIKE '%${q}%'`);
+    eventWhere.push(`event LIKE '%${q}%' OR metadata LIKE '%${q}%'`);
+  }
+  if (country) {
+    userWhere.push(`country = '${country}'`);
+  }
+
+  const userQuery = `SELECT email, plan, country, created_at FROM users ${userWhere.length ? 'WHERE ' + userWhere.join(' AND ') : ''} ORDER BY created_at DESC`;
+  const eventQuery = `SELECT event, metadata, timestamp FROM analytics ${eventWhere.length ? 'WHERE ' + eventWhere.join(' AND ') : ''} ORDER BY timestamp DESC LIMIT 100`;
+
+  const users = await ctx.env.DB.prepare(userQuery).all();
+  const events = await ctx.env.DB.prepare(eventQuery).all();
 
   return new Response(JSON.stringify({ users: users.results, events: events.results }), {
     headers: { 'Content-Type': 'application/json' }
