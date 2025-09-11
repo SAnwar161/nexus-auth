@@ -84,7 +84,63 @@ router.post('/analytics/track', async (ctx) => {
   });
 });
 
-// Default fallback
+// GET /admin/overview — returns user and event data for admin
+router.get('/admin/overview', async (ctx) => {
+  const authHeader = ctx.request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const user = await verifyJWT(token);
+  if (!user || !user.id || user.email !== 'sadat@nexuschats.com') {
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  const users = await ctx.env.DB.prepare(`
+    SELECT email, plan, created_at FROM users ORDER BY created_at DESC
+  `).all();
+
+  const events = await ctx.env.DB.prepare(`
+    SELECT event, metadata, timestamp FROM analytics ORDER BY timestamp DESC LIMIT 100
+  `).all();
+
+  return new Response(JSON.stringify({ users: users.results, events: events.results }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+});
+
+// POST /admin/send-email — sends automated email to a user
+router.post('/admin/send-email', async (ctx) => {
+  const authHeader = ctx.request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const user = await verifyJWT(token);
+  if (!user || user.email !== 'sadat@nexuschats.com') {
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  const { to, subject, body } = await ctx.request.json();
+
+  const emailRes = await fetch('https://api.mailchannels.net/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: 'noreply@nexuschats.com' },
+      subject,
+      content: [{ type: 'text/plain', value: body }]
+    })
+  });
+
+  if (!emailRes.ok) return new Response('Email failed', { status: 500 });
+  return new Response('Email sent', { status: 200 });
+});
+
+// Fallback route
 router.all('*', () => new Response('Not Found', { status: 404 }));
 
 // Worker entry point
