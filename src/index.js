@@ -1,7 +1,13 @@
 import { Router } from 'itty-router';
-import { verifyJWT } from './lib/jwt'; // Adjust path if needed
+import { verifyJWT, signJWT } from './lib/jwt'; // Ensure signJWT exists in your lib
+import bcrypt from 'bcryptjs'; // For password verification
 
 const router = Router();
+
+// Helper to verify password
+async function verifyPassword(password, hash) {
+  return bcrypt.compare(password, hash);
+}
 
 // GET /auth/me — returns email and plan
 router.get('/auth/me', async (ctx) => {
@@ -40,6 +46,43 @@ router.post('/auth/signup', async (ctx) => {
   `).bind(email, hash, country).run();
 
   return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+});
+
+// ✅ NEW: POST /auth/login — authenticates user and returns JWT
+router.post('/auth/login', async (ctx) => {
+  const { email, password } = await ctx.request.json();
+
+  if (!email || !password) {
+    return new Response(JSON.stringify({ error: 'Email and password required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const user = await ctx.env.DB.prepare(`
+    SELECT id, email, password_hash, plan FROM users WHERE email = ?
+  `).bind(email).first();
+
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) {
+    return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const token = await signJWT({ id: user.id, email: user.email, plan: user.plan });
+
+  return new Response(JSON.stringify({ token, email: user.email, plan: user.plan }), {
     headers: { 'Content-Type': 'application/json' }
   });
 });
