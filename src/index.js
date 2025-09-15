@@ -1,8 +1,13 @@
 import { Router } from 'itty-router';
-import { verifyJWT, signJWT } from './lib/jwt'; // Ensure signJWT exists in your lib
-import bcrypt from 'bcryptjs'; // For password verification
+import { verifyJWT, signJWT } from './lib/jwt';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
+
+// Helper to hash password (for signup)
+async function hashPassword(password) {
+  return bcrypt.hash(password, 10);
+}
 
 // Helper to verify password
 async function verifyPassword(password, hash) {
@@ -12,19 +17,19 @@ async function verifyPassword(password, hash) {
 // GET /auth/me — returns email and plan
 router.get('/auth/me', async (ctx) => {
   const authHeader = ctx.request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const token = authHeader.split(' ')[1];
   const user = await verifyJWT(token);
-  if (!user || !user.id) {
+  if (!user?.id) {
     return new Response('Invalid token', { status: 403 });
   }
 
-  const result = await ctx.env.DB.prepare(`
-    SELECT email, plan FROM users WHERE id = ?
-  `).bind(user.id).first();
+  const result = await ctx.env.DB.prepare(
+    'SELECT email, plan FROM users WHERE id = ?'
+  ).bind(user.id).first();
 
   if (!result) {
     return new Response('User not found', { status: 404 });
@@ -38,19 +43,18 @@ router.get('/auth/me', async (ctx) => {
 // POST /auth/signup — creates user with country
 router.post('/auth/signup', async (ctx) => {
   const { email, password, country } = await ctx.request.json();
-  const hash = await hashPassword(password); // use your existing hash logic
+  const hash = await hashPassword(password);
 
-  await ctx.env.DB.prepare(`
-    INSERT INTO users (email, password_hash, country, created_at)
-    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-  `).bind(email, hash, country).run();
+  await ctx.env.DB.prepare(
+    'INSERT INTO users (email, password_hash, country, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)'
+  ).bind(email, hash, country).run();
 
   return new Response(JSON.stringify({ success: true }), {
     headers: { 'Content-Type': 'application/json' }
   });
 });
 
-// ✅ NEW: POST /auth/login — authenticates user and returns JWT
+// POST /auth/login — authenticates user and returns JWT (with debug logging)
 router.post('/auth/login', async (ctx) => {
   const { email, password } = await ctx.request.json();
 
@@ -61,9 +65,9 @@ router.post('/auth/login', async (ctx) => {
     });
   }
 
-  const user = await ctx.env.DB.prepare(`
-    SELECT id, email, password_hash, plan FROM users WHERE email = ?
-  `).bind(email).first();
+  const user = await ctx.env.DB.prepare(
+    'SELECT id, email, password_hash, plan FROM users WHERE email = ?'
+  ).bind(email).first();
 
   if (!user) {
     return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
@@ -71,6 +75,31 @@ router.post('/auth/login', async (ctx) => {
       headers: { 'Content-Type': 'application/json' }
     });
   }
+
+  // ===== DEBUG LOGGING =====
+  console.log('DEBUG: Email from request:', JSON.stringify(email));
+  console.log('DEBUG: Password from request:', JSON.stringify(password));
+  console.log('DEBUG: Hash from DB:', user.password_hash);
+
+  await ctx.env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS debug_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT,
+      email TEXT,
+      password TEXT,
+      hash TEXT
+    )`
+  ).run();
+
+  await ctx.env.DB.prepare(
+    'INSERT INTO debug_logs (ts, email, password, hash) VALUES (?, ?, ?, ?)'
+  ).bind(
+    new Date().toISOString(),
+    email,
+    password,
+    user.password_hash
+  ).run();
+  // ===== END DEBUG LOGGING =====
 
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) {
@@ -90,13 +119,13 @@ router.post('/auth/login', async (ctx) => {
 // POST /auth/upgrade — changes user's plan
 router.post('/auth/upgrade', async (ctx) => {
   const authHeader = ctx.request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const token = authHeader.split(' ')[1];
   const user = await verifyJWT(token);
-  if (!user || !user.id) {
+  if (!user?.id) {
     return new Response('Invalid token', { status: 403 });
   }
 
@@ -106,9 +135,9 @@ router.post('/auth/upgrade', async (ctx) => {
     return new Response('Invalid plan', { status: 400 });
   }
 
-  await ctx.env.DB.prepare(`
-    UPDATE users SET plan = ? WHERE id = ?
-  `).bind(newPlan, user.id).run();
+  await ctx.env.DB.prepare(
+    'UPDATE users SET plan = ? WHERE id = ?'
+  ).bind(newPlan, user.id).run();
 
   return new Response(JSON.stringify({ success: true, plan: newPlan }), {
     headers: { 'Content-Type': 'application/json' }
@@ -118,23 +147,22 @@ router.post('/auth/upgrade', async (ctx) => {
 // POST /analytics/track — logs user events
 router.post('/analytics/track', async (ctx) => {
   const authHeader = ctx.request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const token = authHeader.split(' ')[1];
   const user = await verifyJWT(token);
-  if (!user || !user.id) {
+  if (!user?.id) {
     return new Response('Invalid token', { status: 403 });
   }
 
   const { event, metadata } = await ctx.request.json();
   const timestamp = new Date().toISOString();
 
-  await ctx.env.DB.prepare(`
-    INSERT INTO analytics (user_id, event, metadata, timestamp)
-    VALUES (?, ?, ?, ?)
-  `).bind(user.id, event, JSON.stringify(metadata || {}), timestamp).run();
+  await ctx.env.DB.prepare(
+    'INSERT INTO analytics (user_id, event, metadata, timestamp) VALUES (?, ?, ?, ?)'
+  ).bind(user.id, event, JSON.stringify(metadata || {}), timestamp).run();
 
   return new Response('Event tracked', {
     status: 200,
@@ -145,13 +173,13 @@ router.post('/analytics/track', async (ctx) => {
 // GET /admin/overview — returns user and event data for admin with filters
 router.get('/admin/overview', async (ctx) => {
   const authHeader = ctx.request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const token = authHeader.split(' ')[1];
   const user = await verifyJWT(token);
-  if (!user || !user.id || user.email !== 'sadat@nexuschats.com') {
+  if (!user?.id || user.email !== 'sadat@nexuschats.com') {
     return new Response('Forbidden', { status: 403 });
   }
 
@@ -185,7 +213,7 @@ router.get('/admin/overview', async (ctx) => {
 // POST /admin/send-email — sends automated email to a user
 router.post('/admin/send-email', async (ctx) => {
   const authHeader = ctx.request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -213,11 +241,4 @@ router.post('/admin/send-email', async (ctx) => {
 });
 
 // Fallback route
-router.all('*', () => new Response('Not Found', { status: 404 }));
-
-// Worker entry point
-export default {
-  async fetch(request, env, ctx) {
-    return router.handle(request, env, ctx);
-  }
-};
+router.all('*', () => new Response('Not Found', { status: 
