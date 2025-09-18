@@ -37,7 +37,7 @@ router.all('*', () => new Response('Not Found', { status: 404 }));
 export default {
   fetch: (request, env, ctx) => router.handle(request, env, ctx)
 };
-=======
+
 router.post('/auth/me', async (request, env, ctx) => {
   const { token } = await request.json();
   try {
@@ -127,4 +127,3 @@ export default {
     return router.handle(request, env, ctx);
   },
 };
->>>>>>> cef45e7f81f3bd480eb5730685c8938173363872
