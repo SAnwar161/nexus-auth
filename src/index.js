@@ -241,4 +241,8 @@ router.post('/admin/send-email', async (ctx) => {
 });
 
 // Fallback route
-router.all('*', () => new Response('Not Found', { status: 
+router.all('*', () => new Response('Not Found', { status: 404 }));
+
+export default {
+  fetch: (request, env, ctx) => router.handle(request, env, ctx)
+};
