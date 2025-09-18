@@ -13,7 +13,7 @@ router.post('/auth/login', async (request, env, ctx) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const valid = await bcrypt.compare(password, user.password);
+  const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
     console.log('❌ Invalid password for:', email);
     return new Response('Unauthorized', { status: 401 });
@@ -29,14 +29,6 @@ router.post('/auth/login', async (request, env, ctx) => {
     headers: { 'Content-Type': 'application/json' },
   });
 });
-
-HEAD
-// Fallback route
-router.all('*', () => new Response('Not Found', { status: 404 }));
-
-export default {
-  fetch: (request, env, ctx) => router.handle(request, env, ctx)
-};
 
 router.post('/auth/me', async (request, env, ctx) => {
   const { token } = await request.json();
@@ -121,6 +113,9 @@ router.post('/admin/send-email', async (request, env, ctx) => {
     return new Response('Unauthorized', { status: 401 });
   }
 });
+
+// Fallback route
+router.all('*', () => new Response('Not Found', { status: 404 }));
 
 export default {
   async fetch(request, env, ctx) {
