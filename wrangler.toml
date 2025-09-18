@@ -1,6 +1,11 @@
+env_path = ".env"
+
 name = "nexus-auth-service"
-main = "src/index.js"
-compatibility_date = "2025-09-11"
+main = "src/index.js"              # Entry file for your Worker
+compatibility_date = "2025-09-17"  # Can be today's date or newer
+
+# ✅ Ensure Wrangler uses modules mode and bundles npm deps
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 JWT_SECRET = "your-very-long-random-secret"
