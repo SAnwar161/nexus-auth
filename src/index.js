@@ -30,7 +30,7 @@ router.post('/auth/login', async (request, env, ctx) => {
   });
 });
 
-<<<<<<< HEAD
+HEAD
 // Fallback route
 router.all('*', () => new Response('Not Found', { status: 404 }));
 
