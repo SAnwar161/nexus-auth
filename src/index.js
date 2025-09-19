@@ -1,124 +1,203 @@
 import { Router } from 'itty-router';
-import { signJWT, verifyJWT } from './jwt';
-import bcrypt from 'bcryptjs';
+import { SignJWT, jwtVerify } from 'jose';
+import { sha256 } from 'hash-wasm';
 
 const router = Router();
 
-router.post('/auth/login', async (request, env, ctx) => {
-  const { email, password } = await request.json();
-  const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
+/* ---------------- JWT Helpers ---------------- */
+async function signJWT(payload, secret) {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(new TextEncoder().encode(secret));
+}
 
-  if (!user) {
-    console.log('❌ No user found for:', email);
-    return new Response('Unauthorized', { status: 401 });
+async function verifyJWT(token, secret) {
+  const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+  return payload;
+}
+
+/* ---------------- Routes ---------------- */
+
+// /auth/login
+router.post('/auth/login', async (request, env) => {
+  try {
+    const { email, password } = await request.json();
+    console.log('📥 Login attempt for:', email);
+
+    const user = await env.DB
+      .prepare('SELECT * FROM users WHERE email = ?')
+      .bind(email)
+      .first();
+
+    if (!user) {
+      console.log('❌ No user found for:', email);
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const incomingHash = await sha256(password);
+    if (incomingHash !== user.password_hash) {
+      console.log('❌ Invalid password for:', email);
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const token = await signJWT(
+      { id: user.id, email: user.email, plan: user.plan },
+      env.JWT_SECRET
+    );
+
+    console.log('✅ JWT signed for:', email);
+    return new Response(JSON.stringify({ token }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (err) {
+    console.error('💥 /auth/login error:', err);
+    return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
-
-  const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) {
-    console.log('❌ Invalid password for:', email);
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  const token = await signJWT(
-    { id: user.id, email: user.email, plan: user.plan },
-    ctx.env.JWT_SECRET
-  );
-
-  console.log('✅ JWT signed for:', email);
-  return new Response(JSON.stringify({ token }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
 });
 
-router.post('/auth/me', async (request, env, ctx) => {
-  const { token } = await request.json();
+// /auth/me
+router.post('/auth/me', async (request, env) => {
   try {
-    const user = await verifyJWT(token, ctx.env.JWT_SECRET);
+    const { token } = await request.json();
+    const user = await verifyJWT(token, env.JWT_SECRET);
     return new Response(JSON.stringify({ user }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
     console.log('⚠️ JWT verification failed:', err.message);
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 });
 
-router.post('/auth/upgrade', async (request, env, ctx) => {
-  const { token } = await request.json();
+// /auth/upgrade
+router.post('/auth/upgrade', async (request, env) => {
   try {
-    const user = await verifyJWT(token, ctx.env.JWT_SECRET);
-    await env.DB.prepare('UPDATE users SET plan = ? WHERE id = ?')
+    const { token } = await request.json();
+    const user = await verifyJWT(token, env.JWT_SECRET);
+
+    await env.DB
+      .prepare('UPDATE users SET plan = ? WHERE id = ?')
       .bind('pro', user.id)
       .run();
 
     return new Response(JSON.stringify({ upgraded: true }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
     console.log('⚠️ Upgrade failed:', err.message);
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 });
 
-router.post('/analytics/track', async (request, env, ctx) => {
-  const { token, event } = await request.json();
+// /analytics/track
+router.post('/analytics/track', async (request, env) => {
   try {
-    const user = await verifyJWT(token, ctx.env.JWT_SECRET);
-    await env.DB.prepare('INSERT INTO analytics (user_id, event) VALUES (?, ?)')
+    const { token, event } = await request.json();
+    const user = await verifyJWT(token, env.JWT_SECRET);
+
+    await env.DB
+      .prepare('INSERT INTO analytics (user_id, event) VALUES (?, ?)')
       .bind(user.id, event)
       .run();
 
     return new Response(JSON.stringify({ tracked: true }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
     console.log('⚠️ Tracking failed:', err.message);
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 });
 
-router.post('/admin/overview', async (request, env, ctx) => {
-  const { token } = await request.json();
+// /admin/overview
+router.post('/admin/overview', async (request, env) => {
   try {
-    const user = await verifyJWT(token, ctx.env.JWT_SECRET);
+    const { token } = await request.json();
+    const user = await verifyJWT(token, env.JWT_SECRET);
+
     if (user.email !== 'admin@nexuschats.org') {
-      return new Response('Forbidden', { status: 403 });
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    const stats = await env.DB.prepare('SELECT COUNT(*) AS total FROM users').first();
+    const stats = await env.DB
+      .prepare('SELECT COUNT(*) AS total FROM users')
+      .first();
+
     return new Response(JSON.stringify({ stats }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
     console.log('⚠️ Admin overview failed:', err.message);
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 });
 
-router.post('/admin/send-email', async (request, env, ctx) => {
-  const { token, subject, body } = await request.json();
+// /admin/send-email
+router.post('/admin/send-email', async (request, env) => {
   try {
-    const user = await verifyJWT(token, ctx.env.JWT_SECRET);
+    const { token, subject, body } = await request.json();
+    const user = await verifyJWT(token, env.JWT_SECRET);
+
     if (user.email !== 'admin@nexuschats.org') {
-      return new Response('Forbidden', { status: 403 });
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     console.log(`📧 Sending email: ${subject}`);
     // Placeholder for email logic
     return new Response(JSON.stringify({ sent: true }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
     console.log('⚠️ Email send failed:', err.message);
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 });
 
-// Fallback route
-router.all('*', () => new Response('Not Found', { status: 404 }));
+/* ---------------- Fallback ---------------- */
+router.all('*', () =>
+  new Response(JSON.stringify({ error: 'Not Found' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' }
+  })
+);
 
-export default {
-  async fetch(request, env, ctx) {
-    return router.handle(request, env, ctx);
-  },
-};
+/* ---------------- Export ---------------- */
+async function fetchHandler(request, env, ctx) {
+  return router.handle(request, env, ctx);
+}
+
+export default { fetch: fetchHandler };
