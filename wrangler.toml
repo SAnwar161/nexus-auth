@@ -1,2 +1,10 @@
-name = "nexus-auth-service"  
-compatibility_date = "2023-09-20"  
+name = "nexus-auth-service" 
+compatibility_date = "2023-09-20" 
+ 
+[vars] 
+JWT_SECRET = "your-very-long-random-secret" 
+ 
+[[d1_databases]] 
+binding = "DB" 
+database_name = "nexus-users-db" 
+database_id = "your-d1-id"
