@@ -200,4 +200,4 @@ async function fetchHandler(request, env, ctx) {
   return router.handle(request, env, ctx);
 }
 
-export default { fetch: fetchHandler };
+export default { fetch: fetchHandler };ECHO is on.
