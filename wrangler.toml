@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 name = "nexus-auth-service"  
 main = "src/index.js"  
 compatibility_date = "2023-09-20"  
@@ -9,3 +10,16 @@ JWT_SECRET = "42b72ba9-4287-4378-b90d-d40f626a440863a30152-6012-4990-812f-2ab5ab
 binding = "DB"  
 database_name = "nexus-users-db"  
 database_id = "a6b8cb04-f731-4852-a636-fc47ca28367d" 
+=======
+name = "nexus-auth-service"
+main = "src/index.js"
+compatibility_date = "2023-09-20"
+
+[vars]
+JWT_SECRET = "42b72ba9-4287-4378-b90d-d40f626a440863a30152-6012-4990-812f-2ab5abd683c3"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nexus-users-db"
+database_id = "a6b8cb04-f731-4852-a636-fc47ca28367d"
+>>>>>>> c14750d25d11244f62729c0424e3a428c84e5ea0
