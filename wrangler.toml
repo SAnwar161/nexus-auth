@@ -1,6 +1,5 @@
 name = "nexus-auth-service" 
 compatibility_date = "2023-09-20" 
- 
 [vars] 
 JWT_SECRET = "your-very-long-random-secret" 
  
