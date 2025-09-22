@@ -18,9 +18,18 @@ async function verifyJWT(token, secret) {
   return payload;
 }
 
-/* ---------------- Routes ---------------- */
+/* ---------------- CORS Headers ---------------- */
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "https://nexuschats.org",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+    "Content-Type": "application/json"
+  };
+}
 
-// /auth/login
+/* ---------------- Routes ---------------- */
 router.post('/auth/login', async (request, env) => {
   try {
     const { email, password } = await request.json();
@@ -68,124 +77,6 @@ router.post('/auth/login', async (request, env) => {
   }
 });
 
-// /auth/me
-router.post('/auth/me', async (request, env) => {
-  try {
-    const { token } = await request.json();
-    const user = await verifyJWT(token, env.JWT_SECRET);
-    return new Response(JSON.stringify({ user }), {
-      headers: corsHeaders()
-    });
-  } catch (err) {
-    console.log('⚠️ JWT verification failed:', err.message);
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: corsHeaders()
-    });
-  }
-});
-
-// /auth/upgrade
-router.post('/auth/upgrade', async (request, env) => {
-  try {
-    const { token } = await request.json();
-    const user = await verifyJWT(token, env.JWT_SECRET);
-
-    await env.DB
-      .prepare('UPDATE users SET plan = ? WHERE id = ?')
-      .bind('pro', user.id)
-      .run();
-
-    return new Response(JSON.stringify({ upgraded: true }), {
-      headers: corsHeaders()
-    });
-  } catch (err) {
-    console.log('⚠️ Upgrade failed:', err.message);
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: corsHeaders()
-    });
-  }
-});
-
-// /analytics/track
-router.post('/analytics/track', async (request, env) => {
-  try {
-    const { token, event } = await request.json();
-    const user = await verifyJWT(token, env.JWT_SECRET);
-
-    await env.DB
-      .prepare('INSERT INTO analytics (user_id, event) VALUES (?, ?)')
-      .bind(user.id, event)
-      .run();
-
-    return new Response(JSON.stringify({ tracked: true }), {
-      headers: corsHeaders()
-    });
-  } catch (err) {
-    console.log('⚠️ Tracking failed:', err.message);
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: corsHeaders()
-    });
-  }
-});
-
-// /admin/overview
-router.post('/admin/overview', async (request, env) => {
-  try {
-    const { token } = await request.json();
-    const user = await verifyJWT(token, env.JWT_SECRET);
-
-    if (user.email !== 'admin@nexuschats.org') {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: corsHeaders()
-      });
-    }
-
-    const stats = await env.DB
-      .prepare('SELECT COUNT(*) AS total FROM users')
-      .first();
-
-    return new Response(JSON.stringify({ stats }), {
-      headers: corsHeaders()
-    });
-  } catch (err) {
-    console.log('⚠️ Admin overview failed:', err.message);
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: corsHeaders()
-    });
-  }
-});
-
-// /admin/send-email
-router.post('/admin/send-email', async (request, env) => {
-  try {
-    const { token, subject, body } = await request.json();
-    const user = await verifyJWT(token, env.JWT_SECRET);
-
-    if (user.email !== 'admin@nexuschats.org') {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: corsHeaders()
-      });
-    }
-
-    console.log(`📧 Sending email: ${subject}`);
-    return new Response(JSON.stringify({ sent: true }), {
-      headers: corsHeaders()
-    });
-  } catch (err) {
-    console.log('⚠️ Email send failed:', err.message);
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: corsHeaders()
-    });
-  }
-});
-
 /* ---------------- Fallback ---------------- */
 router.all('*', () =>
   new Response(JSON.stringify({ error: 'Not Found' }), {
@@ -193,16 +84,6 @@ router.all('*', () =>
     headers: corsHeaders()
   })
 );
-
-/* ---------------- CORS Helpers ---------------- */
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "https://nexuschats.org",
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Content-Type": "application/json"
-  };
-}
 
 /* ---------------- Export ---------------- */
 async function fetchHandler(request, env, ctx) {
