@@ -205,3 +205,4 @@ export default { fetch: fetchHandler };
 // ?? GitHub sync override - 21:45 PKT 
 "// force CORS patch"  
 "// confirm update"  
+"// confirm CORS patch"  
