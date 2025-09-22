@@ -35,7 +35,7 @@ router.post('/auth/login', async (request, env) => {
       console.log('❌ No user found for:', email);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders()
       });
     }
 
@@ -44,7 +44,7 @@ router.post('/auth/login', async (request, env) => {
       console.log('❌ Invalid password for:', email);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders()
       });
     }
 
@@ -56,14 +56,14 @@ router.post('/auth/login', async (request, env) => {
     console.log('✅ JWT signed for:', email);
     return new Response(JSON.stringify({ token }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
 
   } catch (err) {
     console.error('💥 /auth/login error:', err);
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   }
 });
@@ -74,13 +74,13 @@ router.post('/auth/me', async (request, env) => {
     const { token } = await request.json();
     const user = await verifyJWT(token, env.JWT_SECRET);
     return new Response(JSON.stringify({ user }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   } catch (err) {
     console.log('⚠️ JWT verification failed:', err.message);
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   }
 });
@@ -97,13 +97,13 @@ router.post('/auth/upgrade', async (request, env) => {
       .run();
 
     return new Response(JSON.stringify({ upgraded: true }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   } catch (err) {
     console.log('⚠️ Upgrade failed:', err.message);
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   }
 });
@@ -120,13 +120,13 @@ router.post('/analytics/track', async (request, env) => {
       .run();
 
     return new Response(JSON.stringify({ tracked: true }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   } catch (err) {
     console.log('⚠️ Tracking failed:', err.message);
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   }
 });
@@ -140,7 +140,7 @@ router.post('/admin/overview', async (request, env) => {
     if (user.email !== 'admin@nexuschats.org') {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders()
       });
     }
 
@@ -149,13 +149,13 @@ router.post('/admin/overview', async (request, env) => {
       .first();
 
     return new Response(JSON.stringify({ stats }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   } catch (err) {
     console.log('⚠️ Admin overview failed:', err.message);
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   }
 });
@@ -169,20 +169,19 @@ router.post('/admin/send-email', async (request, env) => {
     if (user.email !== 'admin@nexuschats.org') {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders()
       });
     }
 
     console.log(`📧 Sending email: ${subject}`);
-    // Placeholder for email logic
     return new Response(JSON.stringify({ sent: true }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   } catch (err) {
     console.log('⚠️ Email send failed:', err.message);
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders()
     });
   }
 });
@@ -191,18 +190,30 @@ router.post('/admin/send-email', async (request, env) => {
 router.all('*', () =>
   new Response(JSON.stringify({ error: 'Not Found' }), {
     status: 404,
-    headers: { 'Content-Type': 'application/json' }
+    headers: corsHeaders()
   })
 );
 
+/* ---------------- CORS Helpers ---------------- */
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "https://nexuschats.org",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Content-Type": "application/json"
+  };
+}
+
 /* ---------------- Export ---------------- */
 async function fetchHandler(request, env, ctx) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders()
+    });
+  }
+
   return router.handle(request, env, ctx);
 }
 
 export default { fetch: fetchHandler };
-// ?? GitHub sync trigger - 21:40 PKT 
-// ?? GitHub sync override - 21:45 PKT 
-"// force CORS patch"  
-"// confirm update"  
-"// confirm CORS patch"  
