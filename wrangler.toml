@@ -9,5 +9,3 @@ JWT_SECRET = "42b72ba9-4287-4378-b90d-d40f626a440863a30152-6012-4990-812f-2ab5ab
 binding = "DB"
 database_name = "nexus-users-db"
 database_id = "a6b8cb04-f731-4852-a636-fc47ca28367d"
-# force update  
-"# confirm route binding"  
