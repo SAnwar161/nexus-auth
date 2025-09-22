@@ -200,6 +200,6 @@ async function fetchHandler(request, env, ctx) {
   return router.handle(request, env, ctx);
 }
 
-export default { fetch: fetchHandler };ECHO is on.
+export default { fetch: fetchHandler };
 // ?? GitHub sync trigger - 21:40 PKT 
 // ?? GitHub sync override - 21:45 PKT 
