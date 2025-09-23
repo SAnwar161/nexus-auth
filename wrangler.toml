@@ -1,7 +1,7 @@
 name = "nexus-auth-service"
 main = "src/index.js"
 compatibility_date = "2023-09-20"
-workers_dev = false
+workers_dev = true
 
 routes = [
   { pattern = "api.nexuschats.org/*", zone_id = "72e8146dbb721b70a17741746c599222" }
