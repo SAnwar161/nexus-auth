@@ -13,5 +13,5 @@ database_id = "a6b8cb04-f731-4852-a636-fc47ca28367d"
 # confirm route binding
 
 routes = [
-  { pattern = "api.nexuschats.org/*", zone_id = "your-zone-id" }
+  { pattern = "api.nexuschats.org/*", zone_id = "72e8146dbb721b70a17741746c599222" }
 ]
