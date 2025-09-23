@@ -1,10 +1,12 @@
 name = "nexus-auth-service"
 main = "src/index.js"
 compatibility_date = "2023-09-20"
+workers_dev = false
 
 routes = [
   { pattern = "api.nexuschats.org/*", zone_id = "72e8146dbb721b70a17741746c599222" }
 ]
+
 
 [vars]
 JWT_SECRET = "42b72ba9-4287-4378-b90d-d40f626a440863a30152-6012-4990-812f-2ab5abd683c3"
